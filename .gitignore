@@ -2,3 +2,46 @@ target/*
 *.pem
 *.p12
 
+
+# ==================== BACKEND (exp-track-app/) ====================
+
+# SSL Certificates and Keystores
+exp-track-app/cert.pem
+exp-track-app/key.pem
+exp-track-app/keystore.p12
+exp-track-app/*.jks
+exp-track-app/*.p12
+exp-track-app/*.cer
+exp-track-app/*.crt
+exp-track-app/*.key
+
+# Build outputs
+exp-track-app/target/
+exp-track-app/.mvn/wrapper/maven-wrapper.jar
+exp-track-app/mvnw.cmd
+exp-track-app/mvnw
+exp-track-app/pom.xml.tag
+exp-track-app/pom.xml.releaseBackup
+exp-track-app/pom.xml.versionsBackup
+exp-track-app/pom.xml.next
+exp-track-app/release.properties
+
+# IDE files
+exp-track-app/.idea/
+exp-track-app/*.iml
+exp-track-app/*.ipr
+exp-track-app/*.iws
+exp-track-app/.classpath
+exp-track-app/.project
+exp-track-app/.settings/
+
+# Logs
+exp-track-app/*.log
+exp-track-app/logs/
+exp-track-app/var/
+
+# Environment variables (CRITICAL!)
+exp-track-app/.env
+exp-track-app/.env.*
+exp-track-app/application-secrets.properties
+exp-track-app/application-dev.properties
