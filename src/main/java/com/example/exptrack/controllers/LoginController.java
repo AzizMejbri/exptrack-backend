@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.exptrack.dtos.LoginRequest;
 import com.example.exptrack.dtos.UserDTO;
 import com.example.exptrack.security.UserDetailsImpl;
+import com.example.exptrack.services.CookieService;
 import com.example.exptrack.services.JwtService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,22 +30,8 @@ public class LoginController {
   private JwtService jwtService;
   @Autowired
   private AuthenticationManager authMan;
-
-  private void addCookie(HttpServletResponse response,
-      String name,
-      String value,
-      long maxAgeSeconds) {
-
-    ResponseCookie cookie = ResponseCookie.from(name, value)
-        .httpOnly(true)
-        .secure(true) // required for SameSite=None
-        .sameSite("None")
-        .path("/")
-        .maxAge(maxAgeSeconds)
-        .build();
-
-    response.addHeader("Set-Cookie", cookie.toString());
-  }
+  @Autowired
+  private CookieService cookieService;
 
   @PostMapping
   public ResponseEntity<?> handleLogin(@RequestBody LoginRequest loginRequest, HttpServletResponse response) {
@@ -55,11 +42,11 @@ public class LoginController {
       UserDetailsImpl user = (UserDetailsImpl) auth.getPrincipal();
       JwtService.TokenPair jwtTokens = jwtService.generateTokenPair(new UserDTO(user.getId(), user.getEmail()));
 
-      addCookie(response, "access_token",
+      cookieService.addCookie(response, "access_token",
           jwtTokens.getAccessToken(),
           jwtService.getMillisUntilExpiration(jwtTokens.getAccessToken()) / 1000);
 
-      addCookie(response, "refresh_token",
+      cookieService.addCookie(response, "refresh_token",
           jwtTokens.getRefreshToken(),
           jwtService.getMillisUntilExpiration(jwtTokens.getRefreshToken()) / 1000);
       return ResponseEntity.ok(Map.of("id", user.getId(), "username", user.getUsername()));
@@ -77,7 +64,7 @@ public class LoginController {
     try {
       JwtService.TokenPair newTokens = jwtService.refreshTokenPair(refreshToken);
 
-      addCookie(response, "access_token",
+      cookieService.addCookie(response, "access_token",
           newTokens.getAccessToken(),
           jwtService.getMillisUntilExpiration(newTokens.getAccessToken()) / 1000);
       return ResponseEntity.ok(newTokens.toMap());

@@ -17,7 +17,7 @@ public class Revenue extends Transaction {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "source")
+  @Column(name = "source", nullable = false)
   private String source;
 
   public Revenue(

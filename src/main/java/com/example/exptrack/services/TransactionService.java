@@ -189,99 +189,106 @@ public class TransactionService {
 
   // Get detailed category statistics
   public Map<String, Object> getCategoryStats(Long userId, String timeFrame) {
-    Map<String, Date> dateRange = getDateRange(timeFrame);
-    List<CategorySummaryDTO> allCategories = getCategorySummary(userId, timeFrame);
+    System.out.println("DEBUG: Starting TransactionService.getCategoryStats for user " + userId);
+    try {
+      Map<String, Date> dateRange = getDateRange(timeFrame);
+      List<CategorySummaryDTO> allCategories = getCategorySummary(userId, timeFrame);
 
-    // Separate expenses and revenues
-    List<CategorySummaryDTO> expenseCategories = allCategories.stream()
-        .filter(c -> "expense".equals(c.getType()))
-        .collect(Collectors.toList());
+      // Separate expenses and revenues
+      List<CategorySummaryDTO> expenseCategories = allCategories.stream()
+          .filter(c -> "expense".equals(c.getType()))
+          .collect(Collectors.toList());
 
-    List<CategorySummaryDTO> revenueCategories = allCategories.stream()
-        .filter(c -> "revenue".equals(c.getType()))
-        .collect(Collectors.toList());
+      List<CategorySummaryDTO> revenueCategories = allCategories.stream()
+          .filter(c -> "revenue".equals(c.getType()))
+          .collect(Collectors.toList());
 
-    // Get expense category details with transaction counts
-    List<Map<String, Object>> expenseCategoryDetails = new ArrayList<>();
-    for (CategorySummaryDTO category : expenseCategories) {
-      Map<String, Object> detail = new HashMap<>();
-      detail.put("category", category.getName());
-      detail.put("type", "expense");
-      detail.put("totalAmount", category.getAmount());
+      // Get expense category details with transaction counts
+      List<Map<String, Object>> expenseCategoryDetails = new ArrayList<>();
+      for (CategorySummaryDTO category : expenseCategories) {
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("category", category.getName());
+        detail.put("type", "expense");
+        detail.put("totalAmount", category.getAmount());
 
-      // Get transaction count for this category
-      List<Expense> expenses = expenseRepository.findByUserIdAndCreationDateBetweenOrderByCreationDateDesc(
-          userId, dateRange.get("start"), dateRange.get("end"));
-      long categoryCount = expenses.stream()
-          .filter(e -> category.getName().equals(e.getCategory()))
-          .count();
+        // Get transaction count for this category
+        List<Expense> expenses = expenseRepository.findByUserIdAndCreationDateBetweenOrderByCreationDateDesc(
+            userId, dateRange.get("start"), dateRange.get("end"));
+        long categoryCount = expenses.stream()
+            .filter(e -> category.getName().equals(e.getCategory()))
+            .count();
 
-      detail.put("transactionCount", categoryCount);
-      detail.put("averageAmount", categoryCount > 0 ? category.getAmount() / categoryCount : 0);
-      detail.put("percentage", category.getPercentage());
-      expenseCategoryDetails.add(detail);
+        detail.put("transactionCount", categoryCount);
+        detail.put("averageAmount", categoryCount > 0 ? category.getAmount() / categoryCount : 0);
+        detail.put("percentage", category.getPercentage());
+        expenseCategoryDetails.add(detail);
+      }
+
+      // Get revenue category details with transaction counts
+      List<Map<String, Object>> revenueCategoryDetails = new ArrayList<>();
+      for (CategorySummaryDTO category : revenueCategories) {
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("category", category.getName());
+        detail.put("type", "revenue");
+        detail.put("totalAmount", category.getAmount());
+
+        // Get transaction count for this source
+        List<Revenue> revenues = revenueRepository.findByUserIdAndCreationDateBetweenOrderByCreationDateDesc(
+            userId, dateRange.get("start"), dateRange.get("end"));
+        long categoryCount = revenues.stream()
+            .filter(r -> category.getName().equals(r.getSource()))
+            .count();
+
+        detail.put("transactionCount", categoryCount);
+        detail.put("averageAmount", categoryCount > 0 ? category.getAmount() / categoryCount : 0);
+        detail.put("percentage", category.getPercentage());
+        revenueCategoryDetails.add(detail);
+      }
+
+      Map<String, Object> stats = new HashMap<>();
+      stats.put("expenseCategories", expenseCategoryDetails);
+      stats.put("revenueCategories", revenueCategoryDetails);
+      stats.put("timeFrame", timeFrame);
+
+      // Calculate summary
+      Double totalExpenses = expenseCategories.stream()
+          .mapToDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0)
+          .sum();
+
+      Double totalRevenue = revenueCategories.stream()
+          .mapToDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0)
+          .sum();
+
+      long totalTransactions = expenseCategories.size() + revenueCategories.size();
+      Double averageTransaction = totalTransactions > 0
+          ? (totalExpenses + totalRevenue) / totalTransactions
+          : 0.0;
+
+      String mostSpentCategory = expenseCategories.stream()
+          .max(Comparator.comparingDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0))
+          .map(CategorySummaryDTO::getName)
+          .orElse("None");
+
+      String mostRevenueCategory = revenueCategories.stream()
+          .max(Comparator.comparingDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0))
+          .map(CategorySummaryDTO::getName)
+          .orElse("None");
+
+      Map<String, Object> summary = new HashMap<>();
+      summary.put("totalExpenses", totalExpenses);
+      summary.put("totalRevenue", totalRevenue);
+      summary.put("averageTransaction", Math.round(averageTransaction * 100.0) / 100.0);
+      summary.put("mostSpentCategory", mostSpentCategory);
+      summary.put("mostRevenueCategory", mostRevenueCategory);
+
+      stats.put("summary", summary);
+
+      return stats;
+    } catch (Exception e) {
+      System.err.println("ERROR in getCategoryStats: " + e.getMessage());
+      e.printStackTrace();
+      throw e; // Re-throw to see what happens
     }
-
-    // Get revenue category details with transaction counts
-    List<Map<String, Object>> revenueCategoryDetails = new ArrayList<>();
-    for (CategorySummaryDTO category : revenueCategories) {
-      Map<String, Object> detail = new HashMap<>();
-      detail.put("category", category.getName());
-      detail.put("type", "revenue");
-      detail.put("totalAmount", category.getAmount());
-
-      // Get transaction count for this source
-      List<Revenue> revenues = revenueRepository.findByUserIdAndCreationDateBetweenOrderByCreationDateDesc(
-          userId, dateRange.get("start"), dateRange.get("end"));
-      long categoryCount = revenues.stream()
-          .filter(r -> category.getName().equals(r.getSource()))
-          .count();
-
-      detail.put("transactionCount", categoryCount);
-      detail.put("averageAmount", categoryCount > 0 ? category.getAmount() / categoryCount : 0);
-      detail.put("percentage", category.getPercentage());
-      revenueCategoryDetails.add(detail);
-    }
-
-    Map<String, Object> stats = new HashMap<>();
-    stats.put("expenseCategories", expenseCategoryDetails);
-    stats.put("revenueCategories", revenueCategoryDetails);
-    stats.put("timeFrame", timeFrame);
-
-    // Calculate summary
-    Double totalExpenses = expenseCategories.stream()
-        .mapToDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0)
-        .sum();
-
-    Double totalRevenue = revenueCategories.stream()
-        .mapToDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0)
-        .sum();
-
-    long totalTransactions = expenseCategories.size() + revenueCategories.size();
-    Double averageTransaction = totalTransactions > 0
-        ? (totalExpenses + totalRevenue) / totalTransactions
-        : 0.0;
-
-    String mostSpentCategory = expenseCategories.stream()
-        .max(Comparator.comparingDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0))
-        .map(CategorySummaryDTO::getName)
-        .orElse("None");
-
-    String mostRevenueCategory = revenueCategories.stream()
-        .max(Comparator.comparingDouble(c -> c.getAmount() != null ? c.getAmount() : 0.0))
-        .map(CategorySummaryDTO::getName)
-        .orElse("None");
-
-    Map<String, Object> summary = new HashMap<>();
-    summary.put("totalExpenses", totalExpenses);
-    summary.put("totalRevenue", totalRevenue);
-    summary.put("averageTransaction", Math.round(averageTransaction * 100.0) / 100.0);
-    summary.put("mostSpentCategory", mostSpentCategory);
-    summary.put("mostRevenueCategory", mostRevenueCategory);
-
-    stats.put("summary", summary);
-
-    return stats;
   }
 
   // Add expense

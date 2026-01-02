@@ -1,8 +1,8 @@
+
 package com.example.exptrack.utils;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.example.exptrack.dtos.UserDTO;
+import com.example.exptrack.services.CookieService;
 import com.example.exptrack.services.JwtService;
-import com.example.exptrack.services.UserService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,10 +26,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
   private JwtService jwtService;
 
   @Autowired
-  private UserService userService;
+  private CookiesExtractor cookiesExtractor;
 
   @Autowired
-  private CookiesExtractor cookiesExtractor;
+  private CookieService cookieService;
 
   @Override
   protected void doFilterInternal(
@@ -39,35 +39,70 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     String path = request.getServletPath();
 
-    // Public endpoints
+    // ✅ Public endpoints
     if (path.startsWith("/api/public") || path.startsWith("/auth")) {
       filterChain.doFilter(request, response);
       return;
     }
 
-    // Extract access token from cookie
-    String token = cookiesExtractor.extractCookie(request, "access_token");
+    try {
+      // 1️⃣ Try access token
+      String accessToken = cookiesExtractor.extractCookie(request, "access_token");
 
-    if (token != null && jwtService.isAccessToken(token) && !jwtService.isTokenExpired(token)) {
-      try {
-        // Extract user from JWT
-        var userDTO = jwtService.extractUserDTO(token);
+      if (accessToken != null
+          && jwtService.isAccessToken(accessToken)
+          && !jwtService.isTokenExpired(accessToken)) {
 
-        // Create authentication object
-        var authentication = new UsernamePasswordAuthenticationToken(
-            userDTO,
-            null,
-            Collections.emptyList());
-
-        // Set authentication in Spring Security context
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-      } catch (Exception e) {
-        logger.error("Cannot set user authentication: " + e.getMessage());
+        authenticate(accessToken);
+        filterChain.doFilter(request, response);
+        return;
       }
-    }
 
-    filterChain.doFilter(request, response);
+      // 2️⃣ Access expired → try refresh token
+      String refreshToken = cookiesExtractor.extractCookie(request, "refresh_token");
+
+      if (refreshToken != null
+          && jwtService.isRefreshToken(refreshToken)
+          && !jwtService.isTokenExpired(refreshToken)) {
+
+        JwtService.TokenPair tokens = jwtService.refreshTokenPair(refreshToken);
+
+        // 🔄 Rotate cookies
+        cookieService.addCookie(
+            response,
+            "access_token",
+            tokens.getAccessToken(),
+            jwtService.getMillisUntilExpiration(tokens.getAccessToken()) / 1000);
+
+        cookieService.addCookie(
+            response,
+            "refresh_token",
+            tokens.getRefreshToken(),
+            jwtService.getMillisUntilExpiration(tokens.getRefreshToken()) / 1000);
+
+        authenticate(tokens.getAccessToken());
+        filterChain.doFilter(request, response);
+        return;
+      }
+
+      // ❌ No valid tokens
+      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      return;
+
+    } catch (Exception e) {
+      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      return;
+    }
   }
 
+  private void authenticate(String token) {
+    UserDTO user = jwtService.extractUserDTO(token);
+
+    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+        user,
+        null,
+        Collections.emptyList());
+
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
 }

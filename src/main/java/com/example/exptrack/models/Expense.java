@@ -16,7 +16,7 @@ public class Expense extends Transaction {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long Id;
 
-  @Column(name = "category")
+  @Column(name = "category", nullable = false)
   private String category;
 
   public Expense() {
