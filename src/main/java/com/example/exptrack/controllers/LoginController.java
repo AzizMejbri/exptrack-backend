@@ -21,7 +21,6 @@ import com.example.exptrack.services.JwtService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -56,8 +55,12 @@ public class LoginController {
   })
   public ResponseEntity<?> handleLogin(@RequestBody LoginRequest loginRequest, HttpServletResponse response) {
     try {
+      System.out.println("🔍 Login attempt: " + loginRequest.getEmail());
+      System.out.println("🔍 Password length: " + loginRequest.getPassword().length());
+
       Authentication auth = authMan.authenticate(
           new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
+      System.out.println("✅ Authentication successful!");
       UserDetailsImpl user = (UserDetailsImpl) auth.getPrincipal();
       JwtService.TokenPair jwtTokens = jwtService.generateTokenPair(new UserDTO(user.getId(), user.getEmail()));
 
@@ -71,6 +74,8 @@ public class LoginController {
 
       return ResponseEntity.ok(Map.of("id", user.getId(), "username", user.getActualUsername()));
     } catch (Exception e) {
+      System.out.println("❌ Authentication failed: " + e.getMessage());
+      e.printStackTrace();
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
     }
   }
