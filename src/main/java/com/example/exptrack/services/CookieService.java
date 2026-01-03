@@ -10,6 +10,16 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class CookieService {
 
+  public void deleteCookie(HttpServletResponse response, String name) {
+    Cookie cookie = new Cookie(name, "");
+    cookie.setHttpOnly(true);
+    cookie.setSecure(true); // keep same as login
+    cookie.setPath("/"); // MUST match original path
+    cookie.setMaxAge(0); // ← kills cookie immediately
+
+    response.addCookie(cookie);
+  }
+
   public void addCookie(HttpServletResponse response,
       String name,
       String value,

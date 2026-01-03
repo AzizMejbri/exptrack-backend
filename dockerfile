@@ -11,9 +11,6 @@ RUN mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
-# List the built jar to verify
-RUN ls -la /build/target/
-
 # Runtime stage
 FROM eclipse-temurin:21-jre
 

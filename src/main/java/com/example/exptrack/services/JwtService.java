@@ -52,7 +52,6 @@ public class JwtService {
     Map<String, Object> claims = new HashMap<>();
     claims.put("id", user.id());
     claims.put("username", user.username());
-    claims.put("id", user.id()); // Store serialized UserDTO
     claims.put("tokenType", tokenType); // Distinguish between token types
 
     return Jwts.builder()
