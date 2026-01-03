@@ -535,11 +535,18 @@ public class TransactionService {
       LocalDate start = LocalDate.parse(startDate);
       LocalDate end = LocalDate.parse(endDate);
 
+      Date startDateObj = Date.from(start.atStartOfDay(ZoneId.systemDefault()).toInstant());
+      Date endDateObj = Date.from(end.atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+      // ADD THIS LOGGING
+      System.out.println("DEBUG: Querying expenses from " + startDateObj + " to " + endDateObj);
+
       List<Expense> expenses = expenseRepository.findByUserIdAndCreationDateBetween(
           userId,
           Date.from(start.atStartOfDay(ZoneId.systemDefault()).toInstant()),
           Date.from(end.atStartOfDay(ZoneId.systemDefault()).toInstant()));
 
+      System.out.println("DEBUG: Found " + expenses.size() + " expenses");
       // Group by category
       Map<String, List<Expense>> groupedByCategory = expenses.stream()
           .collect(Collectors.groupingBy(Expense::getCategory));
@@ -716,10 +723,14 @@ public class TransactionService {
         case "pdf":
         default:
           // Simple text-based "PDF" for now
-          String pdfContent = generateReportContent(userId, request);
-          reportBytes = reportGeneratorService.generateSimplePdf(
+          Map<String, Object> pdfData = prepareReportData(userId, request);
+          System.out.println("DEBUG PDF Data: " + pdfData);
+          System.out.println("DEBUG Summary: " + pdfData.get("summary"));
+          System.out.println("DEBUG Tables: " + pdfData.get("tables"));
+
+          reportBytes = reportGeneratorService.generatePdf(
               request.type() + " Report",
-              pdfContent);
+              pdfData);
           contentType = "application/pdf";
           fileExtension = "pdf";
       }
@@ -778,37 +789,155 @@ public class TransactionService {
     Map<String, Object> summary = new HashMap<>();
     List<Map<String, Object>> tables = new ArrayList<>();
 
-    if (request.type().equals("expense")) {
-      List<ExpenseReportDTO> report = getExpenseReport(userId, request.startDate(), request.endDate());
+    try {
+      System.out.println("DEBUG: Preparing report data for type: " + request.type());
 
-      double total = report.stream().mapToDouble(ExpenseReportDTO::totalAmount).sum();
-      double avg = report.stream().mapToDouble(ExpenseReportDTO::averageAmount).average().orElse(0);
+      if (request.type().equalsIgnoreCase("expense")) {
+        List<ExpenseReportDTO> report = getExpenseReport(userId, request.startDate(), request.endDate());
 
-      summary.put("Total Expenses", total);
-      summary.put("Average per Category", avg);
-      summary.put("Number of Categories", report.size());
+        System.out.println("DEBUG: Got " + report.size() + " expense records");
 
-      // Create table
-      Map<String, Object> table = new HashMap<>();
-      table.put("title", "Expense Categories");
-      table.put("headers", List.of("Category", "Amount", "Transactions", "Average", "Percentage"));
+        if (!report.isEmpty()) {
+          double total = report.stream().mapToDouble(ExpenseReportDTO::totalAmount).sum();
+          double avg = report.stream().mapToDouble(ExpenseReportDTO::averageAmount).average().orElse(0);
 
-      List<List<Object>> rows = new ArrayList<>();
-      for (ExpenseReportDTO item : report) {
-        rows.add(List.of(
-            item.category(),
-            item.totalAmount(),
-            item.transactionCount(),
-            item.averageAmount(),
-            item.percentage()));
+          summary.put("Total Expenses", total);
+          summary.put("Average per Category", avg);
+          summary.put("Number of Categories", report.size());
+
+          // Create table
+          Map<String, Object> table = new HashMap<>();
+          table.put("title", "Expense Categories");
+          table.put("headers", List.of("Category", "Amount", "Transactions", "Average", "Percentage"));
+
+          List<List<Object>> rows = new ArrayList<>();
+          for (ExpenseReportDTO item : report) {
+            rows.add(List.of(
+                item.category(),
+                item.totalAmount(),
+                item.transactionCount(),
+                item.averageAmount(),
+                item.percentage() + "%"));
+          }
+          table.put("rows", rows);
+          tables.add(table);
+        } else {
+          summary.put("Message", "No expense data found for the selected period");
+        }
+
+      } else if (request.type().equalsIgnoreCase("income-statement")) {
+        IncomeStatementDTO incomeStatement = getIncomeStatement(userId, request.startDate(), request.endDate());
+
+        summary.put("Total Revenue", incomeStatement.totalRevenue());
+        summary.put("Total Expenses", incomeStatement.totalExpenses());
+        summary.put("Net Income", incomeStatement.netIncome());
+        summary.put("Gross Margin", incomeStatement.grossMargin() + "%");
+
+        // Revenue table
+        if (incomeStatement.categories().containsKey("revenue")) {
+          List<CategoryBreakdownDTO> revenues = incomeStatement.categories().get("revenue");
+          if (!revenues.isEmpty()) {
+            Map<String, Object> revenueTable = new HashMap<>();
+            revenueTable.put("title", "Revenue Breakdown");
+            revenueTable.put("headers", List.of("Source", "Amount", "Percentage"));
+
+            List<List<Object>> revenueRows = new ArrayList<>();
+            for (CategoryBreakdownDTO cat : revenues) {
+              revenueRows.add(List.of(cat.name(), cat.amount(), cat.percentage() + "%"));
+            }
+            revenueTable.put("rows", revenueRows);
+            tables.add(revenueTable);
+          }
+        }
+
+        // Expense table
+        if (incomeStatement.categories().containsKey("expenses")) {
+          List<CategoryBreakdownDTO> expenses = incomeStatement.categories().get("expenses");
+          if (!expenses.isEmpty()) {
+            Map<String, Object> expenseTable = new HashMap<>();
+            expenseTable.put("title", "Expense Breakdown");
+            expenseTable.put("headers", List.of("Category", "Amount", "Percentage"));
+
+            List<List<Object>> expenseRows = new ArrayList<>();
+            for (CategoryBreakdownDTO cat : expenses) {
+              expenseRows.add(List.of(cat.name(), cat.amount(), cat.percentage() + "%"));
+            }
+            expenseTable.put("rows", expenseRows);
+            tables.add(expenseTable);
+          }
+        }
+
+      } else if (request.type().equalsIgnoreCase("all") || request.type().equalsIgnoreCase("transactions")) {
+        // Get both expenses and revenues
+        List<Expense> expenses = expenseRepository.findByUserIdAndCreationDateBetween(
+            userId,
+            Date.from(LocalDate.parse(request.startDate()).atStartOfDay(ZoneId.systemDefault()).toInstant()),
+            Date.from(LocalDate.parse(request.endDate()).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()));
+
+        List<Revenue> revenues = revenueRepository.findByUserIdAndCreationDateBetween(
+            userId,
+            Date.from(LocalDate.parse(request.startDate()).atStartOfDay(ZoneId.systemDefault()).toInstant()),
+            Date.from(LocalDate.parse(request.endDate()).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()));
+
+        System.out.println("DEBUG: Found " + expenses.size() + " expenses and " + revenues.size() + " revenues");
+
+        double totalExpenses = expenses.stream().mapToDouble(Expense::getAmount).sum();
+        double totalRevenues = revenues.stream().mapToDouble(Revenue::getAmount).sum();
+
+        summary.put("Total Revenues", totalRevenues);
+        summary.put("Total Expenses", totalExpenses);
+        summary.put("Net Income", totalRevenues - totalExpenses);
+        summary.put("Transaction Count", expenses.size() + revenues.size());
+
+        // Create combined transactions table
+        Map<String, Object> transTable = new HashMap<>();
+        transTable.put("title", "All Transactions");
+        transTable.put("headers", List.of("Date", "Type", "Category/Source", "Amount"));
+
+        List<List<Object>> transRows = new ArrayList<>();
+
+        // Add revenues
+        for (Revenue r : revenues) {
+          transRows.add(List.of(
+              r.getCreationDate().toString(),
+              "Revenue",
+              r.getSource() != null ? r.getSource() : "N/A",
+              r.getAmount()));
+        }
+
+        // Add expenses
+        for (Expense e : expenses) {
+          transRows.add(List.of(
+              e.getCreationDate().toString(),
+              "Expense",
+              e.getCategory() != null ? e.getCategory() : "N/A",
+              e.getAmount()));
+        }
+
+        // Sort by date (most recent first)
+        transRows.sort((a, b) -> b.get(0).toString().compareTo(a.get(0).toString()));
+
+        transTable.put("rows", transRows);
+        tables.add(transTable);
       }
-      table.put("rows", rows);
-      tables.add(table);
-    }
 
-    data.put("summary", summary);
-    data.put("tables", tables);
-    return data;
+      data.put("summary", summary);
+      data.put("tables", tables);
+
+      System.out.println("DEBUG: Final data has " + summary.size() + " summary items and " + tables.size() + " tables");
+
+      return data;
+
+    } catch (Exception e) {
+      System.err.println("ERROR in prepareReportData: " + e.getMessage());
+      e.printStackTrace();
+
+      // Return error data
+      summary.put("Error", "Failed to generate report: " + e.getMessage());
+      data.put("summary", summary);
+      data.put("tables", tables);
+      return data;
+    }
   }
 
   private Object prepareJsonData(Long userId, ReportRequestDTO request) {
