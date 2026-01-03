@@ -14,7 +14,11 @@ public class CorsConfig {
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration
-        .setAllowedOrigins(Arrays.asList("http://localhost:4200", "https://localhost:4200", "https://frontend:4200"));
+        .setAllowedOrigins(Arrays.asList(
+            "http://localhost:4200",
+            "https://localhost:4200",
+            "https://frontend:4200",
+            "https://exptrackz-myaxwirvd-spiders-projects-8bcdef85.vercel.app"));
     configuration.setAllowedHeaders(Arrays.asList("*"));
     configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
     configuration.setAllowedMethods(Arrays.asList("OPTIONS", "PATCH", "POST", "GET", "PUT", "DELETE"));
