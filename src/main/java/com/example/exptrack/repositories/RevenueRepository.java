@@ -16,6 +16,10 @@ import com.example.exptrack.models.User;
 public interface RevenueRepository extends JpaRepository<Revenue, Long> {
   public List<Revenue> findByUser(User user);
 
+  List<Revenue> findByUserId(Long userId);
+
+  List<Revenue> findByUserIdAndCreationDateBetween(Long userId, Date start, Date end);
+
   List<Revenue> findByUserIdOrderByCreationDateDesc(Long userId);
 
   List<Revenue> findByUserIdAndCreationDateBetweenOrderByCreationDateDesc(

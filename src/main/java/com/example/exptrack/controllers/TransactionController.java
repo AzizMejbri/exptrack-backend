@@ -90,7 +90,6 @@ public class TransactionController {
     System.out.println("DEBUG: Entering getCategoryStats for user " + userId);
 
     verifyUser(auth, userId);
-    System.err.println("ERROR: Failed After VerifyUser in getCategoryStats");
     return ResponseEntity.ok(
         transactionService.getCategoryStats(userId, timeFrame));
   }
@@ -172,4 +171,61 @@ public class TransactionController {
 
     return ResponseEntity.ok(revenues);
   }
+
+  @GetMapping("/transactions/analysis/trend")
+  public ResponseEntity<List<TrendAnalysisDTO>> getTrendAnalysis(
+      @PathVariable Long userId,
+      @RequestParam(defaultValue = "monthly") String timeFrame,
+      Authentication auth) {
+
+    verifyUser(auth, userId);
+    return ResponseEntity.ok(
+        transactionService.getTrendAnalysis(userId, timeFrame));
+  }
+
+  @GetMapping("/transactions/reports/expense")
+  public ResponseEntity<List<ExpenseReportDTO>> getExpenseReport(
+      @PathVariable Long userId,
+      @RequestParam String startDate,
+      @RequestParam String endDate,
+      Authentication auth) {
+
+    verifyUser(auth, userId);
+    return ResponseEntity.ok(
+        transactionService.getExpenseReport(userId, startDate, endDate));
+  }
+
+  @GetMapping("/transactions/reports/income-statement")
+  public ResponseEntity<IncomeStatementDTO> getIncomeStatement(
+      @PathVariable Long userId,
+      @RequestParam String startDate,
+      @RequestParam String endDate,
+      Authentication auth) {
+
+    verifyUser(auth, userId);
+    return ResponseEntity.ok(
+        transactionService.getIncomeStatement(userId, startDate, endDate));
+  }
+
+  @PostMapping("/transactions/reports/generate")
+  public ResponseEntity<byte[]> generateReport(
+      @PathVariable Long userId,
+      @RequestBody ReportRequestDTO reportRequest,
+      Authentication auth) {
+
+    verifyUser(auth, userId);
+    return transactionService.generateReport(userId, reportRequest);
+  }
+
+  @GetMapping("/transactions/analysis/budget-vs-actual")
+  public ResponseEntity<Map<String, Object>> getBudgetVsActual(
+      @PathVariable Long userId,
+      @RequestParam(defaultValue = "month") String timeFrame,
+      Authentication auth) {
+
+    verifyUser(auth, userId);
+    return ResponseEntity.ok(
+        transactionService.getBudgetVsActual(userId, timeFrame));
+  }
+
 }
