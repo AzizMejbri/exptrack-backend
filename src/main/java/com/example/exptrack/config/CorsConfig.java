@@ -18,9 +18,9 @@ public class CorsConfig {
             "http://localhost:4200",
             "https://localhost:4200",
             "https://frontend:4200",
-            "exptrackz-omega.vercel.app",
-            "exptrackz-spiders-projects-8bcdef85.vercel.app",
-            "exptrackz-4ad2eql9w-spiders-projects-8bcdef85.vercel.app",
+            "https://exptrackz-omega.vercel.app",
+            "https://exptrackz-spiders-projects-8bcdef85.vercel.app",
+            "https://exptrackz-4ad2eql9w-spiders-projects-8bcdef85.vercel.app",
             "https://exptrackz-guyunkown185-3310-spiders-projects-8bcdef85.vercel.app",
             "https://exptrackz-myaxwirvd-spiders-projects-8bcdef85.vercel.app"));
     configuration.setAllowedHeaders(Arrays.asList("*"));
